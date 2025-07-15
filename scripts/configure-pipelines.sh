@@ -246,15 +246,104 @@ if [ ! -z "${QUAY__DOCKERCONFIGJSON}" ]; then
     fi
     echo -n "."
 fi
-export TASK_SCRIPT="#!/usr/bin/env bash
-set -o errexit
-set -o nounset
-set -o pipefail
+# export TASK_SCRIPT="#!/usr/bin/env bash
+# set -o errexit
+# set -o nounset
+# set -o pipefail
 
-SECRET_NAME=\"cosign-pub\"
-if [ -n \"$COSIGN_SIGNING_PUBLIC_KEY\" ]; then
-  echo -n \"* \$SECRET_NAME secret: \"
-  cat <<EOF | kubectl apply -f - >/dev/null
+# SECRET_NAME=\"cosign-pub\"
+# if [ -n \"$COSIGN_SIGNING_PUBLIC_KEY\" ]; then
+#   echo -n \"* \$SECRET_NAME secret: \"
+#   cat <<EOF | kubectl apply -f - >/dev/null
+# apiVersion: v1
+# data:
+#   cosign.pub: $COSIGN_SIGNING_PUBLIC_KEY
+# kind: Secret
+# metadata:
+#   labels:
+#     app.kubernetes.io/instance: default
+#     app.kubernetes.io/part-of: tekton-chains
+#     operator.tekton.dev/operand-name: tektoncd-chains
+#   name: \$SECRET_NAME
+# type: Opaque
+# EOF
+#   echo \"OK\"
+# fi
+
+# SECRET_NAME=\"gitlab-auth-secret\"
+# if [ -n \"\$GITLAB_TOKEN\" ]; then
+#   echo -n \"* \$SECRET_NAME secret: \"
+#   kubectl create secret generic \"\$SECRET_NAME\" \\
+#     --from-literal=password=\$GITLAB_TOKEN \\
+#     --from-literal=username=oauth2 \\
+#     --type=kubernetes.io/basic-auth \\
+#     --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+#   echo \"OK\"
+# fi
+
+# SECRET_NAME=\"gitops-auth-secret\"
+# if [ -n \"\$GIT_TOKEN\" ]; then
+#   echo -n \"* \$SECRET_NAME secret: \"
+#   kubectl create secret generic \"\$SECRET_NAME\" \\
+#     --from-literal=password=\$GIT_TOKEN \\
+#     --type=kubernetes.io/basic-auth \\
+#     --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+#   echo \"OK\"
+# fi
+
+# SECRET_NAME=\"pipelines-secret\"
+# if [ -n \"\$PIPELINES_WEBHOOK_SECRET\" ]; then
+#   echo -n \"* \$SECRET_NAME secret: \"
+#   kubectl create secret generic \"\$SECRET_NAME\" \\
+#     --from-literal=webhook.secret=\$PIPELINES_WEBHOOK_SECRET \\
+#     --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
+#   echo \"OK\"
+# fi
+
+# SECRET_NAME=\"rhdh-image-registry-token\"
+# if [ -n \"\$QUAY_DOCKERCONFIGJSON\" ]; then
+#   echo -n \"* \$SECRET_NAME secret: \"
+#   DATA=\$(mktemp)
+#   echo -n \"\$QUAY_DOCKERCONFIGJSON\" >\"\$DATA\"
+#   kubectl create secret docker-registry \"\$SECRET_NAME\" \\
+#     --from-file=.dockerconfigjson=\"\$DATA\" --dry-run=client -o yaml | \\
+#     kubectl apply --filename - --overwrite=true >/dev/null
+#   rm \"\$DATA\"
+#   echo -n \".\"
+#   while ! kubectl get serviceaccount pipeline >/dev/null &>2; do
+#     sleep 2
+#     echo -n \"_\"
+#   done
+#   for SA in default pipeline; do
+#     kubectl patch serviceaccounts \"\$SA\" --patch \"
+#   secrets:
+#     - name: \$SECRET_NAME
+#   imagePullSecrets:
+#     - name: \$SECRET_NAME
+#   \" >/dev/null
+#     echo -n \".\"
+#   done
+#   echo \"OK\"
+# fi"
+# DEV_SETUP_TASK=$(echo "${DEV_SETUP_TASK}" | yq ".spec.steps[0].script = strenv(TASK_SCRIPT)" -M)
+# if [ $? -ne 0 ]; then
+#     echo -n "FAIL"
+#     exit 1
+# fi
+# echo -n "."
+# cat <<EOF | kubectl apply -n ${NAMESPACE} -f - >/dev/null
+# ${DEV_SETUP_TASK}
+# EOF
+# if [ $? -ne 0 ]; then
+#     echo -n "FAIL"
+#     exit 1
+# fi
+# echo "OK"
+
+SECRET_NAME="cosign-pub"
+if [ -n "$COSIGN_SIGNING_PUBLIC_KEY" ]; then
+  echo -n "* $SECRET_NAME secret: "
+  cat <<EOF | kubectl apply -n ci-hub -f - >/dev/null
 apiVersion: v1
 data:
   cosign.pub: $COSIGN_SIGNING_PUBLIC_KEY
@@ -264,78 +353,70 @@ metadata:
     app.kubernetes.io/instance: default
     app.kubernetes.io/part-of: tekton-chains
     operator.tekton.dev/operand-name: tektoncd-chains
-  name: \$SECRET_NAME
+  name: $SECRET_NAME
 type: Opaque
 EOF
-  echo \"OK\"
+  echo "OK"
 fi
 
-SECRET_NAME=\"gitlab-auth-secret\"
-if [ -n \"\$GITLAB_TOKEN\" ]; then
-  echo -n \"* \$SECRET_NAME secret: \"
-  kubectl create secret generic \"\$SECRET_NAME\" \\
-    --from-literal=password=\$GITLAB_TOKEN \\
-    --from-literal=username=oauth2 \\
-    --type=kubernetes.io/basic-auth \\
+SECRET_NAME="gitlab-auth-secret"
+if [ -n "$GITLAB__TOKEN" ]; then
+  echo -n "* $SECRET_NAME secret: "
+  kubectl create secret generic "$SECRET_NAME" -n ci-hub \
+    --from-literal=password=$GITLAB__TOKEN \
+    --from-literal=username=oauth2 \
+    --type=kubernetes.io/basic-auth \
     --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
-  echo \"OK\"
+  echo "OK"
 fi
 
-SECRET_NAME=\"gitops-auth-secret\"
-if [ -n \"\$GIT_TOKEN\" ]; then
-  echo -n \"* \$SECRET_NAME secret: \"
-  kubectl create secret generic \"\$SECRET_NAME\" \\
-    --from-literal=password=\$GIT_TOKEN \\
-    --type=kubernetes.io/basic-auth \\
+SECRET_NAME="gitops-auth-secret"
+if [ -n "$GITOPS__GIT_TOKEN" ]; then
+  echo -n "* $SECRET_NAME secret: "
+  kubectl create secret generic "$SECRET_NAME" -n ci-hub \
+    --from-literal=password=$GITOPS__GIT_TOKEN \
+    --type=kubernetes.io/basic-auth \
     --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
-  echo \"OK\"
+  echo "OK"
 fi
 
-SECRET_NAME=\"pipelines-secret\"
-if [ -n \"\$PIPELINES_WEBHOOK_SECRET\" ]; then
-  echo -n \"* \$SECRET_NAME secret: \"
-  kubectl create secret generic \"\$SECRET_NAME\" \\
-    --from-literal=webhook.secret=\$PIPELINES_WEBHOOK_SECRET \\
+SECRET_NAME="pipelines-secret"
+if [ -n "$GITHUB__APP__WEBHOOK__SECRET" ]; then
+  echo -n "* $SECRET_NAME secret: "
+  kubectl create secret generic "$SECRET_NAME" -n ci-hub \
+    --from-literal=webhook.secret=$GITHUB__APP__WEBHOOK__SECRET \
     --dry-run=client -o yaml | kubectl apply --filename - --overwrite=true >/dev/null
-  echo \"OK\"
+  echo "OK"
 fi
 
-SECRET_NAME=\"rhdh-image-registry-token\"
-if [ -n \"\$QUAY_DOCKERCONFIGJSON\" ]; then
-  echo -n \"* \$SECRET_NAME secret: \"
-  DATA=\$(mktemp)
-  echo -n \"\$QUAY_DOCKERCONFIGJSON\" >\"\$DATA\"
-  kubectl create secret docker-registry \"\$SECRET_NAME\" \\
-    --from-file=.dockerconfigjson=\"\$DATA\" --dry-run=client -o yaml | \\
+SECRET_NAME="rhdh-image-registry-token"
+if [ -n "$QUAY__DOCKERCONFIGJSON" ]; then
+  echo -n "* $SECRET_NAME secret: "
+  DATA=$(mktemp)
+  echo -n "$QUAY__DOCKERCONFIGJSON" >"$DATA"
+  kubectl create secret docker-registry "$SECRET_NAME" -n ci-hub \
+    --from-file=.dockerconfigjson="$DATA" --dry-run=client -o yaml | \
     kubectl apply --filename - --overwrite=true >/dev/null
-  rm \"\$DATA\"
-  echo -n \".\"
-  while ! kubectl get serviceaccount pipeline >/dev/null &>2; do
+  rm "$DATA"
+  echo -n "."
+  while ! kubectl get serviceaccount pipeline >/dev/null 2>&1; do
     sleep 2
-    echo -n \"_\"
+    echo -n "_"
   done
   for SA in default pipeline; do
-    kubectl patch serviceaccounts \"\$SA\" --patch \"
+    kubectl patch serviceaccounts "$SA" --patch "
   secrets:
-    - name: \$SECRET_NAME
+    - name: $SECRET_NAME
   imagePullSecrets:
-    - name: \$SECRET_NAME
-  \" >/dev/null
-    echo -n \".\"
+    - name: $SECRET_NAME
+  " >/dev/null
+    echo -n "."
   done
-  echo \"OK\"
-fi"
-DEV_SETUP_TASK=$(echo "${DEV_SETUP_TASK}" | yq ".spec.steps[0].script = strenv(TASK_SCRIPT)" -M)
-if [ $? -ne 0 ]; then
-    echo -n "FAIL"
-    exit 1
+  kubectl patch serviceaccounts pipeline -n ci-hub --patch "
+  secrets:
+    - name: $SECRET_NAME
+  imagePullSecrets:
+    - name: $SECRET_NAME
+  " >/dev/null
+  echo "OK"
 fi
-echo -n "."
-cat <<EOF | kubectl apply -n ${NAMESPACE} -f - >/dev/null
-${DEV_SETUP_TASK}
-EOF
-if [ $? -ne 0 ]; then
-    echo -n "FAIL"
-    exit 1
-fi
-echo "OK"
